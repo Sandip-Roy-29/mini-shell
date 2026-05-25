@@ -1,0 +1,14 @@
+dup2-demo
+dup2-demo.c
+execvp-demo
+execvp-demo.c
+fd-demo
+fd-demo.c
+file-redirection
+file-redirection.c
+fork-demo
+fork-demo.c
+output.txt
+out.txt
+wait-demo
+wait-demo.c

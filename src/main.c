@@ -1,162 +1,120 @@
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/wait.h>
+
+#include "parser.h"
+#include "executor.h"
+#include "builtins.h"
 
 int main()
 {
+
     while (1)
     {
+
         printf("mini-shell> ");
         fflush(stdout);
 
-        char input[100];
-        char *argv[10];
+        char input[200];
 
         if (fgets(input, sizeof(input), stdin) == NULL)
-        {
             break;
-        }
 
         input[strcspn(input, "\n")] = '\0';
 
-        if (strcmp(input, "exit") == 0)
-        {
-            break;
-        }
+        CommandType type = detect_type(input);
 
-        char *pipe_pos = strchr(input, '|');
-        char *red1_pos = strchr(input, '>');
-        char *red2_pos = strchr(input, '<');
-        char *red3_pos = strchr(input, '>>');
-
-        if (pipe_pos == NULL)
+        if (type == NORMAL)
         {
 
-            char *token = strtok(input, " ");
-            int i = 0;
+            char *argv[MAX_ARGS];
 
-            while (token != NULL)
-            {
-                argv[i++] = token;
-                token = strtok(NULL, " ");
-            }
+            parse_command(input, argv);
 
-            argv[i] = NULL;
-            if (argv[0] == NULL)
+            if (handle_builtin(argv))
                 continue;
 
-            if (strcmp(argv[0], "cd") == 0)
-            {
-                if (argv[1] == NULL)
-                {
-                    printf("cd: missing arguments\n");
-                }
-                else
-                {
-                    if (chdir(argv[1]) != 0)
-                    {
-                        perror("cd failed");
-                    }
-                }
-                continue;
-            }
-
-            pid_t pid = fork();
-
-            if (pid == 0)
-            {
-                execvp(argv[0], argv);
-
-                perror("excvp failed");
-                return 1;
-            }
-            else
-            {
-                wait(NULL);
-            }
+            execute_normal(argv);
         }
-        else
+
+        else if (type == PIPE)
         {
+
+            char *pipe_pos = strchr(input, '|');
+
             *pipe_pos = '\0';
 
-            char *cmd1 = input;
-            char *cmd2 = pipe_pos + 1;
+            char *left = input;
+            char *right = pipe_pos + 1;
 
-            char *argv1[10];
-            char *token1 = strtok(cmd1, " ");
-            int i = 0;
+            execute_pipe(left, right);
+        }
 
-            while (token1 != NULL)
+        else if (type == REDIRECT_OUT)
+        {
+
+            char *redir = strchr(input, '>');
+
+            *redir = '\0';
+
+            char *command = input;
+            char *filename = redir + 1;
+
+            while (*filename == ' ')
+                filename++;
+
+            if (*filename == '\0')
             {
-                argv1[i++] = token1;
-                token1 = strtok(NULL, " ");
-            }
-
-            argv1[i] = NULL;
-
-            char *argv2[10];
-            char *token2 = strtok(cmd2, " ");
-            int j = 0;
-
-            while (token2 != NULL)
-            {
-                argv2[j++] = token2;
-                token2 = strtok(NULL, " ");
-            }
-
-            argv2[j] = NULL;
-
-            if (argv1[0] == NULL || argv2[0] == NULL)
-            {
-                printf("invalid pipe command\n");
+                printf("missing filename\n");
                 continue;
             }
 
-            int fd[2];
+            execute_redirect_out(command, filename);
+        }
 
-            if (pipe(fd) == -1)
+        else if (type == REDIRECT_IN)
+        {
+
+            char *redir = strchr(input, '<');
+
+            *redir = '\0';
+
+            char *command = input;
+            char *filename = redir + 1;
+
+            while (*filename == ' ')
+                filename++;
+
+            if (*filename == '\0')
             {
-                perror("pipe failed");
+                printf("missing filename\n");
                 continue;
             }
 
-            pid_t pid1 = fork();
+            execute_redirect_in(command, filename);
+        }
 
-            if (pid1 == 0)
+        else if (type == APPEND)
+        {
+
+            char *redir = strstr(input, ">>");
+
+            *redir = '\0';
+
+            char *command = input;
+            char *filename = redir + 2;
+
+            while (*filename == ' ')
+                filename++;
+
+            if (*filename == '\0')
             {
-                dup2(fd[1], STDOUT_FILENO);
-
-                close(fd[0]);
-                close(fd[1]);
-
-                execvp(argv1[0], argv1);
-
-                perror("excvp failed");
-                return 1;
+                printf("missing filename\n");
+                continue;
             }
 
-            pid_t pid2 = fork();
-
-            if (pid2 == 0)
-            {
-                dup2(fd[0], STDIN_FILENO);
-
-                close(fd[0]);
-                close(fd[1]);
-
-                execvp(argv2[0], argv2);
-
-                perror("excvp failed");
-                return 1;
-            }
-
-            close(fd[0]);
-            close(fd[1]);
-
-            wait(NULL);
-            wait(NULL);
+            execute_append(command, filename);
         }
     }
+
     return 0;
 }
