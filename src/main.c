@@ -38,15 +38,7 @@ int main()
 
         else if (type == PIPE)
         {
-
-            char *pipe_pos = strchr(input, '|');
-
-            *pipe_pos = '\0';
-
-            char *left = input;
-            char *right = pipe_pos + 1;
-
-            execute_pipe(left, right);
+            execute_multi_pipe(input);
         }
 
         else if (type == REDIRECT_OUT)
